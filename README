@@ -1,7 +1,6 @@
 # Document Layout Parsing using OCR
 
-Comparison of YOLO26s and RT-DETRv4-S for document-layout detection
-on DocLayNet, followed by an OCR demonstration.
+Comparison of YOLO26s and RT-DETRv4-S for document-layout detection on DocLayNet using a common evaluation protocol, followed by an OCR demonstration on detected document regions.
 
 ## Structure
 
