@@ -1,0 +1,47 @@
+# Datasets and local data
+data/
+datasets/
+
+# Model weights and exported models
+checkpoints/
+weights/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.engine
+
+# Training and inference outputs
+outputs/
+runs/
+logs/
+results/raw/
+
+# Python environments
+.venv/
+venv/
+env/
+conda-env/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Environment variables and local configuration
+.env
+.env.*
+*.local.yml
+*.local.yaml
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
