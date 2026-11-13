@@ -1,5 +1,10 @@
-# Datasets and local data
-data/
+# Datasets and local data (ignore heavy files, track scripts and mappings)
+data/*
+!data/*.py
+!data/*.json
+!data/*.yaml
+!data/*.yml
+!data/*.md
 datasets/
 
 # Model weights and exported models
