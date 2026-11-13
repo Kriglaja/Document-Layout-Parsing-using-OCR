@@ -54,3 +54,6 @@ train_dataloader:
   collate_fn:
     mixup_epochs: [4, 64]
     stop_epoch: 120
+
+# val_dataloader:
+#   total_batch_size: 1

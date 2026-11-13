@@ -55,7 +55,9 @@ class BaseSolver(object):
         self.model = cfg.model
 
         # Setup teacher model
-        self.teacher_model = to(cfg.teacher_model, device)
+        # self.teacher_model = to(cfg.teacher_model, device)
+        # Setup teacher model only when training
+        self.teacher_model = None
 
         # NOTE: Must load_tuning_state before EMA instance building
         if self.cfg.tuning:
@@ -90,6 +92,7 @@ class BaseSolver(object):
 
     def train(self):
         self._setup()
+        self.teacher_model = to(self.cfg.teacher_model, self.device)
         self.optimizer = self.cfg.optimizer
         self.lr_scheduler = self.cfg.lr_scheduler
         self.lr_warmup_scheduler = self.cfg.lr_warmup_scheduler
