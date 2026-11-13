@@ -12,10 +12,15 @@ CHECKPOINT="${3:-$RTDETR_DIR/checkpoints/rtv4_hgnetv2_s_coco.pth}"
 CONFIG="${RTDETR_CONFIG:-configs/rtv4/rtv4_hgnetv2_s_coco.yml}"
 
 # Environment
-if [[ -d "$REPO_ROOT/venv" ]]; then
+if [[ -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/python" ]]; then
+    echo "Using active virtual environment: $VIRTUAL_ENV"
+
+elif [[ -d "$REPO_ROOT/venv" ]]; then
     source "$REPO_ROOT/venv/bin/activate"
+
 elif [[ -d "$RTDETR_DIR/venv" ]]; then
     source "$RTDETR_DIR/venv/bin/activate"
+
 else
     echo "Error: Virtual environment not found."
     exit 1
