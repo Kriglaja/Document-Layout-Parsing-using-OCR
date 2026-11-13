@@ -98,18 +98,22 @@ EOF
 ls -lh "$CHECKPOINT" | tee "$RESULT_DIR/checkpoint.txt"
 
 # ==========================================
-# Execution (Inference / Evaluation)
+# Execution (Inference)
 # ==========================================
-cd rtdetrv4
-python tools/inference/torch_inf.py \
-  -c configs/rtv4/rtv4_hgnetv2_s_coco.yml \
-  -r "$CHECKPOINT" \
-  --input "$INPUT_PATH" \
-  --device "$DEVICE"
+echo "Starting RT-DETRv4 inference..."
 
-# Collect outputs
-find . -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.mp4' \) \
+"$REPO_DIR/scripts/rtdetrv4_run_inference.sh" \
+  "$INPUT_PATH" \
+  "$DEVICE" \
+  "$CHECKPOINT"
+
+# Output Collection
+find "$REPO_DIR/rtdetrv4" -type f \
+  \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.mp4' \) \
   -mmin -15 -print | tee "$RESULT_DIR/generated-outputs.txt"
 
-printf 'SUCCESS\nCompleted: %s\nInput: %s\n' "$(date -Is)" "$INPUT_PATH" > "$RESULT_DIR/SUCCESS.txt"
+# Completion
+printf 'SUCCESS\nCompleted: %s\nInput: %s\n' \
+  "$(date -Is)" "$INPUT_PATH" > "$RESULT_DIR/SUCCESS.txt"
+
 echo "Pipeline execution completed successfully. Review results in: $RESULT_DIR"
