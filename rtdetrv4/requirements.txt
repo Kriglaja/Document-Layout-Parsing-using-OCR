@@ -8,3 +8,5 @@ calflops
 transformers
 opencv-python-headless
 Pillow>=10.0
+torchmetrics
+termcolor

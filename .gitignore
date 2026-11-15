@@ -50,3 +50,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+
+# https://github.com/facebookresearch/dinov3
+rtdetrv4/dinov3
+rtdetrv4/pretrain
