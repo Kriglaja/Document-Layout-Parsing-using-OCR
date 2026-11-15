@@ -110,7 +110,7 @@ for path in (
 PY
 
 SOURCE_CONFIG="configs/rtv4/rtv4_hgnetv2_s_doclaynet_overfit.yml"
-RUNTIME_CONFIG="$RUN_ROOT/rtv4_hgnetv2_s_doclaynet_overfit_ucloud.yml"
+RUNTIME_CONFIG="$RTDETR_DIR/configs/rtv4/rtv4_hgnetv2_s_doclaynet_overfit_ucloud.yml"
 
 if [ ! -f "$SOURCE_CONFIG" ]; then
   echo "Missing configuration in repository: $SOURCE_CONFIG"
@@ -168,7 +168,6 @@ echo "Starting training..."
 python train.py \
   -c "$RUNTIME_CONFIG" \
   -t pretrain/rtv4_hgnetv2_s_coco.pth \
-  --use-amp \
   --seed=0
 
 BEST_CHECKPOINT="$TRAIN_OUTPUT/best_stg1.pth"
