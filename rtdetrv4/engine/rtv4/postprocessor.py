@@ -26,7 +26,8 @@ class PostProcessor(nn.Module):
         'num_classes',
         'use_focal_loss',
         'num_top_queries',
-        'remap_mscoco_category'
+        'remap_mscoco_category',
+        "category_ids"
     ]
 
     def __init__(
@@ -34,7 +35,8 @@ class PostProcessor(nn.Module):
         num_classes=80,
         use_focal_loss=True,
         num_top_queries=300,
-        remap_mscoco_category=False
+        remap_mscoco_category=False,
+        category_ids=None
     ) -> None:
         super().__init__()
         self.use_focal_loss = use_focal_loss
@@ -42,6 +44,19 @@ class PostProcessor(nn.Module):
         self.num_classes = int(num_classes)
         self.remap_mscoco_category = remap_mscoco_category
         self.deploy_mode = False
+
+        self.category_ids = category_ids
+
+        if self.category_ids is not None:
+            if len(self.category_ids) != self.num_classes:
+                raise ValueError(
+                    "category_ids must contain exactly "
+                    f"{self.num_classes} values, got "
+                    f"{len(self.category_ids)}"
+                )
+
+            if len(set(self.category_ids)) != len(self.category_ids):
+                raise ValueError("category_ids must be unique")
 
     def extra_repr(self) -> str:
         return f'use_focal_loss={self.use_focal_loss}, num_classes={self.num_classes}, num_top_queries={self.num_top_queries}'
@@ -64,7 +79,7 @@ class PostProcessor(nn.Module):
             boxes = bbox_pred.gather(dim=1, index=index.unsqueeze(-1).repeat(1, 1, bbox_pred.shape[-1]))
 
         else:
-            scores = F.softmax(logits)[:, :, :-1]
+            scores = F.softmax(logits, dim=-1)[:, :, :-1]
             scores, labels = scores.max(dim=-1)
             if scores.shape[1] > self.num_top_queries:
                 scores, index = torch.topk(scores, self.num_top_queries, dim=-1)
@@ -78,10 +93,22 @@ class PostProcessor(nn.Module):
         # TODO
         if self.remap_mscoco_category:
             from ..data.dataset import mscoco_label2category
+
             labels = torch.tensor(
-                [mscoco_label2category[int(x.item())] for x in labels.flatten()],
-                device=boxes.device
+                [
+                    mscoco_label2category[int(value.item())]
+                    for value in labels.flatten()
+                ],
+                device=boxes.device,
             ).reshape(labels.shape)
+
+        elif self.category_ids is not None:
+            mapping = torch.as_tensor(
+                self.category_ids,
+                device=labels.device,
+                dtype=labels.dtype,
+            )
+            labels = mapping[labels]
 
         results = []
         for lab, box, sco in zip(labels, boxes, scores):

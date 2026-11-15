@@ -6,11 +6,13 @@ output_dir: ./outputs/rtv4_hgnetv2_s_doclaynet_overfit
 num_classes: 11
 remap_mscoco_category: false
 
-epoches: 1
-print_freq: 1
-checkpoint_freq: 1
+epoches: 100
+print_freq: 8
+checkpoint_freq: 10
 warmup_iter: 32
 use_amp: true
+
+category_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 HGNetv2:
   pretrained: false
@@ -34,10 +36,12 @@ train_dataloader:
   dataset:
     type: CocoDetection
     img_folder: /var/home/user/Projects/Document-Layout-Parsing-using-OCR/data/doclaynet/PNG
-    ann_file: /var/home/user/Projects/Document-Layout-Parsing-using-OCR/data/doclaynet/subsets/train_32_all_classes_rtdetr.json
+    ann_file: /var/home/user/Projects/Document-Layout-Parsing-using-OCR/data/doclaynet/subsets/train_32_all_classes.json
     return_masks: false
     transforms:
       type: Compose
+      policy: null
+      mosaic_prob: 0.0
       ops:
         - type: Resize
           size: [640, 640]
@@ -49,6 +53,9 @@ train_dataloader:
         - type: ConvertBoxes
           fmt: cxcywh
           normalize: true
+  collate_fn:
+    mixup_prob: 0.0
+    base_size_repeat: null
   shuffle: true
   num_workers: 0
   drop_last: false
@@ -64,7 +71,7 @@ val_dataloader:
   dataset:
     type: CocoDetection
     img_folder: /var/home/user/Projects/Document-Layout-Parsing-using-OCR/data/doclaynet/PNG
-    ann_file: /var/home/user/Projects/Document-Layout-Parsing-using-OCR/data/doclaynet/subsets/val_16_rtdetr.json
+    ann_file: /var/home/user/Projects/Document-Layout-Parsing-using-OCR/data/doclaynet/subsets/train_32_all_classes.json
     return_masks: false
     transforms:
       type: Compose
