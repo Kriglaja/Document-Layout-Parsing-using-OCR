@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 WORKSPACE_ROOT="${WORKSPACE_ROOT:-/work/document-layout-parsing}"
-JOB_NAME="${JOB_NAME:-rtdetrv4-s-doclaynet-seed42-smoke}"
+RUN_NAME="rtdetrv4-s-doclaynet-seed42"
 SEED=42
 REPO_URL="${REPO_URL:-https://github.com/Kriglaja/Document-Layout-Parsing-using-OCR.git}"
 REPO_REF="${REPO_REF:-main}"
@@ -13,7 +13,7 @@ DINOV3_SOURCE="${DINOV3_SOURCE:-$ASSET_ROOT/dinov3}"
 DINOV3_WEIGHTS="${DINOV3_WEIGHTS:-$ASSET_ROOT/dinov3_vitb16_pretrain_lvd1689m.pth}"
 STUDENT_WEIGHTS="${STUDENT_WEIGHTS:-$ASSET_ROOT/rtv4_hgnetv2_s_coco.pth}"
 
-RUN_ROOT="$WORKSPACE_ROOT/runs/$JOB_NAME"
+RUN_ROOT="$WORKSPACE_ROOT/runs/$RUN_NAME"
 REPO_DIR="$RUN_ROOT/repository"
 VENV_DIR="$RUN_ROOT/venv"
 RESULT_DIR="$RUN_ROOT/results"
@@ -80,7 +80,7 @@ if [ -f "rtdetrv4/requirements.txt" ]; then
 fi
 
 python --version | tee "$RESULT_DIR/venv-python-version.txt"
-python - <<'PY' | tee "$RESULT_DIR/torch-version.txt"
+python - <<'PYVERS' | tee "$RESULT_DIR/torch-version.txt"
 import torch
 import torchvision
 print("torch:", torch.__version__)
@@ -90,7 +90,7 @@ if not torch.cuda.is_available():
     raise SystemExit("CUDA is unavailable")
 print("cuda runtime:", torch.version.cuda)
 print("gpu:", torch.cuda.get_device_name(0))
-PY
+PYVERS
 
 RTDETR_DIR="$REPO_DIR/rtdetrv4"
 cd "$RTDETR_DIR"
@@ -100,7 +100,7 @@ mkdir -p pretrain
 ln -sfn "$DINOV3_WEIGHTS" pretrain/dinov3_vitb16_pretrain_lvd1689m.pth
 ln -sfn "$STUDENT_WEIGHTS" pretrain/rtv4_hgnetv2_s_coco.pth
 
-python - <<PY
+python - <<'PYCHECKPOINTS'
 import torch
 for path in (
     "pretrain/dinov3_vitb16_pretrain_lvd1689m.pth",
@@ -109,7 +109,7 @@ for path in (
     print("Verifying:", path)
     state = torch.load(path, map_location="cpu", weights_only=True)
     print("Loaded:", type(state).__name__)
-PY
+PYCHECKPOINTS
 
 SOURCE_CONFIG="configs/rtv4/rtv4_hgnetv2_s_doclaynet_1024.yml"
 RUNTIME_CONFIG="$RTDETR_DIR/configs/rtv4/rtv4_hgnetv2_s_doclaynet_1024_seed42_runtime.yml"
@@ -119,7 +119,7 @@ if [ ! -f "$SOURCE_CONFIG" ]; then
   exit 4
 fi
 
-python - <<PY
+python - <<PYCONFIG
 from pathlib import Path
 import yaml
 
@@ -167,47 +167,31 @@ print("Images:", image_root)
 print("Output:", output_dir)
 print("Training batch:", train_loader["total_batch_size"])
 print("Validation batch:", val_loader["total_batch_size"])
-PY
+PYCONFIG
 
 cp "$RUNTIME_CONFIG" "$RESULT_DIR/runtime-config.yml"
 
-python - <<'PY'
+python - <<'PYGPU'
 import torch
-
 count = torch.cuda.device_count()
-
 if count != 1:
-    raise SystemExit(
-        f"Expected exactly one CUDA device, found {count}"
-    )
-
+    raise SystemExit(f"Expected exactly one CUDA device, found {count}")
 name = torch.cuda.get_device_name(0)
-memory_gib = (
-    torch.cuda.get_device_properties(0).total_memory
-    / 1024**3
-)
-
+memory_gib = torch.cuda.get_device_properties(0).total_memory / 1024**3
 print("Selected GPU:", name)
 print(f"GPU memory: {memory_gib:.1f} GiB")
-
 if "MIG" in name:
-    raise SystemExit(
-        "Expected a complete B200, not a MIG slice"
-    )
-
+    raise SystemExit("Expected a complete B200, not a MIG slice")
 if "B200" not in name:
-    raise SystemExit(
-        f"Expected NVIDIA B200, found {name}"
-    )
-PY
+    raise SystemExit(f"Expected NVIDIA B200, found {name}")
+PYGPU
 
-python - <<PY
+python - <<PYDATA
 import json
 from pathlib import Path
 
 root = Path("$DATA_ROOT")
 image_root = root / "PNG"
-
 expected = {
     "train": (69375, 941123),
     "val": (6489, 99816),
@@ -215,44 +199,28 @@ expected = {
 
 for split, expected_counts in expected.items():
     annotation_path = root / "COCO" / f"{split}.json"
-
     with annotation_path.open(encoding="utf-8") as file:
         coco = json.load(file)
-
-    actual_counts = (
-        len(coco["images"]),
-        len(coco["annotations"]),
-    )
-
+    actual_counts = (len(coco["images"]), len(coco["annotations"]))
     print(f"{split}: {actual_counts}")
-
     if actual_counts != expected_counts:
         raise SystemExit(
-            f"{split} count mismatch: "
-            f"expected {expected_counts}, "
-            f"found {actual_counts}"
+            f"{split} count mismatch: expected {expected_counts}, found {actual_counts}"
         )
-
     missing = []
-
     for image in coco["images"]:
         image_path = image_root / image["file_name"]
-
         if not image_path.is_file():
             missing.append(str(image_path))
-
             if len(missing) == 10:
                 break
-
     if missing:
         print("Missing image files:")
-        print("\\n".join(missing))
-        raise SystemExit(
-            f"{split} contains missing image files"
-        )
+        print("\n".join(missing))
+        raise SystemExit(f"{split} contains missing image files")
 
 print("Dataset preflight passed")
-PY
+PYDATA
 
 echo "Starting training..."
 python train.py \
