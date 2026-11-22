@@ -54,3 +54,24 @@ Thumbs.db
 # https://github.com/facebookresearch/dinov3
 rtdetrv4/dinov3
 rtdetrv4/pretrain
+
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+.venv*/
+venv/
+
+# Ultralytics default output
+runs/
+
+# Downloaded model weights
+yolo26/checkpoints/*
+!yolo26/checkpoints/.gitkeep
+
+# UCloud job workspace
+yolo26-ucloud-work/
+
+# Secrets
+.env
+*.token

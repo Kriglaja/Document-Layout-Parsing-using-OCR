@@ -1,0 +1,4 @@
+ultralytics
+huggingface_hub
+Pillow
+PyYAML
