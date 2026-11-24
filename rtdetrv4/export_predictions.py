@@ -78,13 +78,17 @@ def main() -> None:
         raise SystemExit("CUDA requested but unavailable")
 
     selected = load_ids(args.image_ids)
-    # Match train.py resume construction. Setting output_dir=None prevents this
-    # export-only process from writing or changing training artifacts.
+    # Solver._setup requires a path-like output_dir even for evaluation.
+    # Use an isolated directory beside the exported predictions so that the
+    # original training output directory remains untouched.
+    solver_output_dir = args.output.parent / "solver-output"
+    solver_output_dir.mkdir(parents=True, exist_ok=True)
+
     cfg = YAMLConfig(
         str(args.config),
         resume=str(args.checkpoint),
         device=args.device,
-        output_dir=None,
+        output_dir=str(solver_output_dir),
     )
     solver = TASKS[cfg.yaml_cfg["task"]](cfg)
     solver.eval()  # builds components and loads resume checkpoint
