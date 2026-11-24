@@ -1,0 +1,196 @@
+=== train.py ===
+"""
+RT-DETRv4: Painlessly Furthering Real-Time Object Detection with Vision Foundation Models
+Copyright (c) 2025 The RT-DETRv4 Authors. All Rights Reserved.
+---------------------------------------------------------------------------------
+Modified from DEIM: DETR with Improved Matching for Fast Convergence
+Copyright (c) 2024 The DEIM Authors. All Rights Reserved.
+"""
+
+import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+import argparse
+
+from engine.misc import dist_utils
+from engine.core import YAMLConfig, yaml_utils
+from engine.solver import TASKS
+
+debug=False
+
+if debug:
+    import torch
+    def custom_repr(self):
+        return f'{{Tensor:{tuple(self.shape)}}} {original_repr(self)}'
+    original_repr = torch.Tensor.__repr__
+    torch.Tensor.__repr__ = custom_repr
+
+def main(args, ) -> None:
+    """main
+    """
+    dist_utils.setup_distributed(args.print_rank, args.print_method, seed=args.seed)
+
+    assert not all([args.tuning, args.resume]), \
+        'Only support from_scrach or resume or tuning at one time'
+
+
+    update_dict = yaml_utils.parse_cli(args.update)
+    update_dict.update({k: v for k, v in args.__dict__.items() \
+        if k not in ['update', ] and v is not None})
+
+    cfg = YAMLConfig(args.config, **update_dict)
+
+    if args.resume or args.tuning:
+        if 'HGNetv2' in cfg.yaml_cfg:
+            cfg.yaml_cfg['HGNetv2']['pretrained'] = False
+
+    print('cfg: ', cfg.__dict__)
+
+    solver = TASKS[cfg.yaml_cfg['task']](cfg)
+
+    if args.test_only:
+        solver.val()
+    else:
+        solver.fit()
+
+    dist_utils.cleanup()
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    # priority 0
+    parser.add_argument('-c', '--config', type=str, required=True)
+    parser.add_argument('-r', '--resume', type=str, help='resume from checkpoint')
+    parser.add_argument('-t', '--tuning', type=str, help='tuning from checkpoint')
+    parser.add_argument('-d', '--device', type=str, help='device',)
+    parser.add_argument('--seed', type=int, help='exp reproducibility')
+    parser.add_argument('--use-amp', action='store_true', help='auto mixed precision training')
+    parser.add_argument('--output-dir', type=str, help='output directoy')
+    parser.add_argument('--summary-dir', type=str, help='tensorboard summry')
+    parser.add_argument('--test-only', action='store_true', default=False,)
+
+    # priority 1
+    parser.add_argument('-u', '--update', nargs='+', help='update yaml config')
+
+    # env
+    parser.add_argument('--print-method', type=str, default='builtin', help='print method')
+    parser.add_argument('--print-rank', type=int, default=0, help='print rank id')
+
+    parser.add_argument('--local-rank', type=int, help='local rank id')
+    args = parser.parse_args()
+
+    main(args)
+=== DetSolver test method ===
+                    (self.output_dir / 'eval').mkdir(exist_ok=True)
+                    if "bbox" in coco_evaluator.coco_eval:
+                        filenames = ['latest.pth']
+                        if epoch % 50 == 0:
+                            filenames.append(f'{epoch:03}.pth')
+                        for name in filenames:
+                            torch.save(coco_evaluator.coco_eval["bbox"].eval,
+                                    self.output_dir / "eval" / name)
+
+        total_time = time.time() - start_time
+        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+        print('Training time {}'.format(total_time_str))
+
+
+    def val(self, ):
+        self.eval()
+
+        module = self.ema.module if self.ema else self.model
+        test_stats, coco_evaluator = evaluate(module, self.criterion, self.postprocessor,
+                self.val_dataloader, self.evaluator, self.device)
+
+        if self.output_dir:
+            dist_utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, self.output_dir / "eval.pth")
+
+        return
+
+
+    def state_dict(self):
+        """State dict, train/eval"""
+        state = {}
+        state['date'] = datetime.datetime.now().isoformat()
+=== evaluate loop ===
+def evaluate(model: torch.nn.Module, criterion: torch.nn.Module, postprocessor, data_loader, coco_evaluator: CocoEvaluator, device):
+    model.eval()
+    criterion.eval()
+    coco_evaluator.cleanup()
+
+    metric_logger = MetricLogger(delimiter="  ")
+    # metric_logger.add_meter('class_error', SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    header = 'Test:'
+
+    # iou_types = tuple(k for k in ('segm', 'bbox') if k in postprocessor.keys())
+    iou_types = coco_evaluator.iou_types
+    # coco_evaluator = CocoEvaluator(base_ds, iou_types)
+    # coco_evaluator.coco_eval[iou_types[0]].params.iouThrs = [0, 0.1, 0.5, 0.75]
+
+    for samples, targets in metric_logger.log_every(data_loader, 10, header):
+        samples = samples.to(device)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        outputs = model(samples)
+
+        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+
+        results = postprocessor(outputs, orig_target_sizes)
+
+        # if 'segm' in postprocessor.keys():
+        #     target_sizes = torch.stack([t["size"] for t in targets], dim=0)
+        #     results = postprocessor['segm'](results, outputs, orig_target_sizes, target_sizes)
+
+        res = {target['image_id'].item(): output for target, output in zip(targets, results)}
+        if coco_evaluator is not None:
+            coco_evaluator.update(res)
+
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+=== postprocessor forward ===
+                    f"{len(self.category_ids)}"
+                )
+
+            if len(set(self.category_ids)) != len(self.category_ids):
+                raise ValueError("category_ids must be unique")
+
+    def extra_repr(self) -> str:
+        return f'use_focal_loss={self.use_focal_loss}, num_classes={self.num_classes}, num_top_queries={self.num_top_queries}'
+
+    # def forward(self, outputs, orig_target_sizes):
+    def forward(self, outputs, orig_target_sizes: torch.Tensor):
+        logits, boxes = outputs['pred_logits'], outputs['pred_boxes']
+        # orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+
+        bbox_pred = torchvision.ops.box_convert(boxes, in_fmt='cxcywh', out_fmt='xyxy')
+        bbox_pred *= orig_target_sizes.repeat(1, 2).unsqueeze(1)
+
+        if self.use_focal_loss:
+            scores = F.sigmoid(logits)
+            scores, index = torch.topk(scores.flatten(1), self.num_top_queries, dim=-1)
+            # TODO for older tensorrt
+            # labels = index % self.num_classes
+            labels = mod(index, self.num_classes)
+            index = index // self.num_classes
+            boxes = bbox_pred.gather(dim=1, index=index.unsqueeze(-1).repeat(1, 1, bbox_pred.shape[-1]))
+
+        else:
+            scores = F.softmax(logits, dim=-1)[:, :, :-1]
+            scores, labels = scores.max(dim=-1)
+            if scores.shape[1] > self.num_top_queries:
+                scores, index = torch.topk(scores, self.num_top_queries, dim=-1)
+                labels = torch.gather(labels, dim=1, index=index)
+                boxes = torch.gather(boxes, dim=1, index=index.unsqueeze(-1).tile(1, 1, boxes.shape[-1]))
+
+        # TODO for onnx export
+        if self.deploy_mode:
+            return labels, boxes, scores
+
+        # TODO
+        if self.remap_mscoco_category:
+            from ..data.dataset import mscoco_label2category
+=== resume/load checkpoint ===

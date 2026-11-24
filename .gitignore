@@ -20,7 +20,7 @@ weights/
 outputs/
 runs/
 logs/
-results/raw/
+results/
 
 # Python environments
 .venv/
