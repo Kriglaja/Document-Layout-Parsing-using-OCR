@@ -2,3 +2,4 @@ ultralytics
 huggingface_hub
 Pillow
 PyYAML
+opencv-python-headless

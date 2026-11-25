@@ -104,6 +104,28 @@ else
     python -m pip install ultralytics huggingface_hub pillow pyyaml
 fi
 
+echo "=== Configuring headless OpenCV ==="
+
+# Ultralytics may install the regular GUI-enabled OpenCV package.
+# UCloud batch jobs have no desktop GUI, so use exactly one headless build.
+python -m pip uninstall -y \
+    opencv-python \
+    opencv-contrib-python \
+    opencv-python-headless \
+    opencv-contrib-python-headless \
+    || true
+
+python -m pip install --no-cache-dir opencv-python-headless
+
+echo "=== Verifying OpenCV ==="
+
+python - <<'PY'
+import cv2
+
+print(f"OpenCV import succeeded: {cv2.__version__}")
+print(f"OpenCV location: {cv2.__file__}")
+PY
+
 # ---------------------------------------------------------------------------
 # Check CUDA before downloading and loading the model
 # ---------------------------------------------------------------------------
