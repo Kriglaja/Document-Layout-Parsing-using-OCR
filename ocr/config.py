@@ -11,6 +11,12 @@ import torch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED_FORMATS = ("png", "pdf", "docx", "odt", "json", "txt")
+SUPPORTED_DETECTORS = ("rtdetrv4", "yolo26")
+DEFAULT_CHECKPOINTS = {
+    "rtdetrv4": PROJECT_ROOT / "rtdetrv4/checkpoints/best_stg1.pth",
+    "yolo26": PROJECT_ROOT / "yolo26/checkpoints/yolo26s-doclaynet.pt",
+}
+DEFAULT_RTDETR_CONFIG = PROJECT_ROOT / "rtdetrv4/checkpoints/runtime-config.yml"
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,11 +28,13 @@ class PipelineSettings:
     recursive: bool
     pdf_dpi: int
     selected_pages: str | None
+    detector: str
     checkpoint: Path
-    model_config: Path
+    model_config: Path | None
     device: str
     detector_confidence: float
     max_detections: int
+    input_size: int
     language: str
     psm: int
     token_confidence: float
@@ -36,7 +44,7 @@ class PipelineSettings:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Process images or PDFs with RT-DETRv4-S and Tesseract OCR."
+        description="Process images or PDFs with document-layout detection and Tesseract OCR."
     )
     parser.add_argument("input", nargs="+", type=Path, help="Image, PDF, or directory inputs")
     parser.add_argument("--output", type=Path, required=True, help="Output directory")
@@ -45,11 +53,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--recursive", action="store_true", help="Search input directories recursively")
     parser.add_argument("--pdf-dpi", type=int, default=200)
     parser.add_argument("--pages", help="PDF pages, for example 1,3-5")
-    parser.add_argument("--checkpoint", type=Path, default=PROJECT_ROOT / "rtdetrv4/checkpoints/best_stg1.pth")
-    parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "rtdetrv4/checkpoints/runtime-config.yml")
+    parser.add_argument("--detector", choices=SUPPORTED_DETECTORS, default="rtdetrv4")
+    parser.add_argument("--checkpoint", type=Path, help="Override the selected detector's default checkpoint")
+    parser.add_argument("--config", type=Path, help="RT-DETRv4 runtime config; ignored by YOLO26")
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--detector-confidence", type=float, default=0.50)
     parser.add_argument("--max-detections", type=int, default=300)
+    parser.add_argument("--input-size", type=int, default=1024)
     parser.add_argument("--lang", default="eng")
     parser.add_argument("--psm", type=int, default=6)
     parser.add_argument("--token-confidence", type=float, default=30)
@@ -74,9 +84,7 @@ def _find_tesseract(explicit: Path | None) -> str:
         if common_location.is_file():
             return str(common_location)
 
-    raise SystemExit(
-        "Tesseract was not found. Add it to PATH or pass --tesseract-command PATH."
-    )
+    raise SystemExit("Tesseract was not found. Add it to PATH or pass --tesseract-command PATH.")
 
 
 def _resolve_device(requested: str) -> str:
@@ -98,11 +106,17 @@ def _safe_name(value: str | None) -> str | None:
 
 
 def resolve_settings(arguments: argparse.Namespace) -> PipelineSettings:
-    checkpoint = arguments.checkpoint.expanduser().resolve()
-    model_config = arguments.config.expanduser().resolve()
-    for path in (checkpoint, model_config):
-        if not path.is_file():
-            raise SystemExit(f"Missing required model file: {path}")
+    checkpoint = (arguments.checkpoint or DEFAULT_CHECKPOINTS[arguments.detector]).expanduser().resolve()
+    if not checkpoint.is_file():
+        raise SystemExit(f"Missing {arguments.detector} checkpoint: {checkpoint}")
+
+    model_config: Path | None = None
+    if arguments.detector == "rtdetrv4":
+        model_config = (arguments.config or DEFAULT_RTDETR_CONFIG).expanduser().resolve()
+        if not model_config.is_file():
+            raise SystemExit(f"Missing RT-DETRv4 runtime config: {model_config}")
+    elif arguments.config is not None:
+        raise SystemExit("--config applies only to --detector rtdetrv4")
 
     if not 0.0 <= arguments.detector_confidence <= 1.0:
         raise SystemExit("--detector-confidence must be in [0,1]")
@@ -110,6 +124,8 @@ def resolve_settings(arguments: argparse.Namespace) -> PipelineSettings:
         raise SystemExit("--token-confidence must be in [0,100]")
     if arguments.max_detections < 1:
         raise SystemExit("--max-detections must be positive")
+    if arguments.input_size < 32:
+        raise SystemExit("--input-size must be at least 32")
     if arguments.pdf_dpi < 72:
         raise SystemExit("--pdf-dpi must be at least 72")
 
@@ -121,11 +137,13 @@ def resolve_settings(arguments: argparse.Namespace) -> PipelineSettings:
         recursive=arguments.recursive,
         pdf_dpi=arguments.pdf_dpi,
         selected_pages=arguments.pages,
+        detector=arguments.detector,
         checkpoint=checkpoint,
         model_config=model_config,
         device=_resolve_device(arguments.device),
         detector_confidence=arguments.detector_confidence,
         max_detections=arguments.max_detections,
+        input_size=arguments.input_size,
         language=arguments.lang,
         psm=arguments.psm,
         token_confidence=arguments.token_confidence,

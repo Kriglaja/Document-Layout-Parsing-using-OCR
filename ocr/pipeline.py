@@ -4,12 +4,11 @@ from __future__ import annotations
 import json
 import shutil
 from collections import defaultdict
-from pathlib import Path
 
 import pytesseract
 
 from .config import PipelineSettings
-from .detection import detect_layout
+from .detectors import create_backend
 from .exporters import EXPORTERS
 from .inputs import prepare_inputs
 from .models import PipelineResult, ProcessedDocument
@@ -25,11 +24,13 @@ def _write_run_config(settings: PipelineSettings) -> None:
         "recursive": settings.recursive,
         "pdf_dpi": settings.pdf_dpi,
         "pages": settings.selected_pages,
+        "detector": settings.detector,
         "checkpoint": str(settings.checkpoint),
-        "config": str(settings.model_config),
+        "config": str(settings.model_config) if settings.model_config else None,
         "device": settings.device,
         "detector_confidence": settings.detector_confidence,
         "max_detections": settings.max_detections,
+        "input_size": settings.input_size,
         "ocr": {
             "language": settings.language,
             "psm": settings.psm,
@@ -61,15 +62,17 @@ def process_documents(settings: PipelineSettings) -> PipelineResult:
         if settings.output_name and len(document_keys) != 1:
             raise ValueError("--name is only valid for one logical document")
 
-        print("\n[detect layout]", flush=True)
-        detections = detect_layout(
+        print(f"\n[detect layout: {settings.detector}]", flush=True)
+        backend = create_backend(settings.detector)
+        detections = backend.detect(
             prepared_pages,
             checkpoint=settings.checkpoint,
-            config=settings.model_config,
-            resolved_config_path=work_directory / "runtime-config-resolved.yml",
-            device_name=settings.device,
+            device=settings.device,
             confidence=settings.detector_confidence,
             max_detections=settings.max_detections,
+            input_size=settings.input_size,
+            work_directory=work_directory,
+            model_config=settings.model_config,
         )
 
         print("\n[recognize text]", flush=True)

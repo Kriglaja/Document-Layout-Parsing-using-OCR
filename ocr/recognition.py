@@ -1,13 +1,11 @@
 """Tesseract OCR over detected text-bearing regions."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytesseract
 from PIL import Image
 from pytesseract import Output
 
-from .detection import DetectionResult
+from .detectors.base import DetectionResult
 from .models import BoundingBox, OcrToken, PreparedPage, ProcessedPage, Region
 
 
