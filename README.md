@@ -24,4 +24,6 @@ Instructions for running the common evaluator will be added here.
 
 ## OCR demonstration
 
-Instructions will be added after the detection pipeline is complete.
+`python process_document.py INPUT... --output OUTPUT --formats png pdf json txt`
+
+Inputs may be images, PDFs, or directories. JSON is always preserved. The default OCR runtime is the `doclaynet-ocr` Distrobox; RT-DETR inference runs on the host.
