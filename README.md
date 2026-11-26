@@ -4,61 +4,49 @@ Comparison of **YOLO26s** and **RT-DETRv4-S** for document-layout detection on *
 
 The repository serves two related purposes:
 
-1. **Research comparison:** evaluate YOLO26s and RT-DETRv4-S using the same DocLayNet annotations, prediction schema, sanitation rules, and COCO evaluator.
+1. **Research comparison:** evaluate YOLO26s and RT-DETRv4-S using the same annotations, prediction schema, sanitation rules, and COCO evaluator.
 2. **Document processing application:** detect semantic page regions, run Tesseract OCR on text-bearing regions, and export visual, searchable, editable, and machine-readable outputs.
 
 ## Features
 
 - RT-DETRv4-S and YOLO26s detector backends.
-- Arbitrary PNG, JPEG, TIFF, WebP, and PDF inputs.
+- PNG, JPEG, TIFF, WebP, PDF, and directory inputs.
 - Automatic CUDA use when available, with CPU fallback.
-- Tesseract OCR applied to detected text-bearing regions.
-- Original-image detector coordinates preserved throughout the pipeline.
+- Tesseract OCR over detected text-bearing regions.
+- Original-image detector and OCR coordinates preserved throughout the pipeline.
 - Spatial OCR reconstruction with token-level positioning.
-- Searchable PDF, semantic DOCX/ODT, structured JSON, plain text, and PNG visualizations.
+- Searchable PDF, semantic DOCX/ODT, structured JSON, plain text, and PNG outputs.
 - Shared COCO evaluation tooling for model-neutral comparison.
-- Reproducible scripts for RT-DETR training and prediction export.
 
 ## Repository structure
 
 ```text
 .
-├── data/                  # Local DocLayNet data; not committed
-├── eval/                  # Shared prediction validation and COCO evaluation
+├── eval/                  # Shared prediction export, validation, and evaluation
 ├── ocr/                   # Detector backends, OCR pipeline, data models, exporters
 │   ├── detectors/         # RT-DETRv4 and YOLO26 implementations
-│   └── exporters/         # PNG, PDF, DOCX, ODT, JSON, and TXT outputs
+│   └── exporters/         # PNG, PDF, DOCX, ODT, JSON, and TXT exporters
 ├── rtdetrv4/              # RT-DETRv4 source, configs, checkpoints, and tools
-├── scripts/               # Dataset audit, experiment and export scripts
+├── scripts/               # Dataset audit, experiment, and utility scripts
 ├── yolo26/                # YOLO checkpoint setup and smoke-test utilities
 ├── process_document.py    # Main user-facing application
-├── requirements.txt       # Application dependencies except PyTorch/Torchvision
+├── requirements.txt       # Application and evaluator dependencies
 └── README.md
 ```
 
 ## Installation
 
-### 1. Create or activate a Python environment
+### 1. Create a Python environment
 
-The application uses one environment for detector inference, OCR integration, and document export. Python 3.11 or 3.12 is the safest general choice. The project has also been tested locally with Python 3.14 and CUDA-enabled PyTorch.
+Python 3.11 or 3.12 is the safest general choice. Install **PyTorch** and **Torchvision** first using the command appropriate for the operating system and CUDA version from the official PyTorch installation selector. CPU-only PyTorch works but detector inference will be slower.
 
-Install **PyTorch** and **Torchvision** first using the command appropriate for the operating system and CUDA version from the official PyTorch installation selector. CPU-only PyTorch also works but detector inference will be slower.
-
-Install the remaining application dependencies:
+Install the remaining dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-The requirements include:
-
-- Pillow
-- pytesseract
-- PyMuPDF
-- python-docx
-- odfpy
-- PyYAML
-- ultralytics
+The requirements include the application and evaluation dependencies, including Pillow, pytesseract, PyMuPDF, python-docx, odfpy, PyYAML, Ultralytics, and `faster-coco-eval==1.8.0`.
 
 ### 2. Install Tesseract
 
@@ -76,7 +64,7 @@ Fedora:
 sudo dnf install tesseract tesseract-langpack-eng
 ```
 
-macOS or Aurora through Homebrew:
+macOS or Linux with Homebrew:
 
 ```bash
 brew install tesseract
@@ -85,7 +73,7 @@ brew install tesseract
 Windows 11:
 
 1. Install Tesseract OCR.
-2. Add the installation directory to `PATH`, or provide the executable explicitly:
+2. Add its installation directory to `PATH`, or pass the executable explicitly:
 
 ```powershell
 python .\process_document.py .\input.pdf `
@@ -120,7 +108,7 @@ Expected location:
 yolo26/checkpoints/yolo26s-doclaynet.pt
 ```
 
-The checkpoint should expose these 11 classes in indices 0–10:
+The checkpoint must expose these classes at indices 0–10:
 
 ```text
 Caption, Footnote, Formula, List-item, Page-footer, Page-header,
@@ -129,17 +117,16 @@ Picture, Section-header, Table, Text, Title
 
 ### RT-DETRv4-S
 
-Place the selected DocLayNet checkpoint and its runtime configuration at:
+Place the selected fine-tuned checkpoint and runtime configuration at:
 
 ```text
 rtdetrv4/checkpoints/best_stg1.pth
 rtdetrv4/checkpoints/runtime-config.yml
 ```
 
-TODO: add link to rtdetrv4s checkpoint later
-`best_stg1.pth` is the validation-selected fine-tuned model used for inference. It is separate from `rtv4_hgnetv2_s_coco.pth`, which is the original COCO-pretrained training initializer.
+`best_stg1.pth` is the validation-selected DocLayNet model used for inference. It is separate from `rtv4_hgnetv2_s_coco.pth`, the original COCO-pretrained training initializer.
 
-The application disables model-pretraining downloads during inference and explicitly restores the selected checkpoint, preferring EMA weights when present.
+The application disables pretrained-weight downloads during inference and explicitly restores the selected checkpoint, preferring EMA weights when present.
 
 ## Process a document
 
@@ -154,7 +141,7 @@ python process_document.py INPUT... \
 
 JSON is always generated as the normalized machine-readable document model, even when `json` is omitted from `--formats`.
 
-### RT-DETRv4-S example
+### RT-DETRv4-S
 
 ```bash
 python process_document.py report.pdf \
@@ -164,7 +151,7 @@ python process_document.py report.pdf \
   --device auto
 ```
 
-### YOLO26s example
+### YOLO26s
 
 ```bash
 python process_document.py report.pdf \
@@ -174,7 +161,9 @@ python process_document.py report.pdf \
   --device auto
 ```
 
-### Image input
+### Other input modes
+
+Single image:
 
 ```bash
 python process_document.py scan.png \
@@ -182,7 +171,7 @@ python process_document.py scan.png \
   --formats png pdf json
 ```
 
-### Directory input
+Directory:
 
 ```bash
 python process_document.py scans/ \
@@ -191,7 +180,7 @@ python process_document.py scans/ \
   --formats pdf json txt
 ```
 
-### Selected PDF pages
+Selected PDF pages:
 
 ```bash
 python process_document.py report.pdf \
@@ -201,9 +190,7 @@ python process_document.py report.pdf \
   --formats png pdf json
 ```
 
-### Custom output name
-
-For one logical document:
+Custom output name for one logical document:
 
 ```bash
 python process_document.py report.pdf \
@@ -213,8 +200,6 @@ python process_document.py report.pdf \
 ```
 
 ## Application options
-
-Important options:
 
 | Option | Default | Description |
 |---|---:|---|
@@ -231,7 +216,7 @@ Important options:
 | `--pdf-dpi` | `200` | Rasterization resolution for PDF inputs |
 | `--preserve-intermediates` | off | Retain temporary rasterized pages and resolved config |
 
-The application confidence threshold is distinct from evaluation export. COCO evaluation should preserve low-confidence detections, typically down to `0.001`, while the application defaults to `0.50` to avoid OCR processing weak candidate regions.
+The application threshold is distinct from evaluation export. COCO evaluation preserves detections down to `0.001`; the application defaults to `0.50` to avoid applying OCR to weak candidate regions.
 
 ## Output formats
 
@@ -255,20 +240,18 @@ OUTPUT_DIRECTORY/
 └── run-config.json
 ```
 
-Format behavior:
-
-- **PNG:** project visualizations showing layout detection, spatial OCR, token boxes, and hybrid reconstruction.
+- **PNG:** layout detection, spatial OCR, token boxes, hybrid reconstruction, and comparison views.
 - **PDF:** original page image with an invisible searchable/selectable OCR text layer.
 - **DOCX:** semantic, editable reconstruction using headings, paragraphs, and list items.
 - **ODT:** semantic OpenDocument reconstruction.
 - **JSON:** pages, semantic regions, scores, OCR tokens, confidences, and coordinates.
 - **TXT:** simplified reading-order text.
 
-Tables, pictures, and formulas are treated as visual regions in the hybrid PNG output. Ordinary Tesseract OCR is applied to captions, footnotes, list items, page headers and footers, section headers, text, and titles.
+Tables, pictures, and formulas are preserved as visual regions in the hybrid PNG output. Tesseract OCR is applied to captions, footnotes, list items, page headers and footers, section headers, text, and titles.
 
 ## DocLayNet dataset setup
 
-The shared evaluation tools expect the canonical DocLayNet COCO annotations and images. A typical local layout is:
+The shared evaluation tools expect DocLayNet COCO annotations and images in this local layout:
 
 ```text
 data/doclaynet/
@@ -280,38 +263,11 @@ data/doclaynet/
     └── *.png
 ```
 
-Dataset contents are excluded from Git. Use the scripts in `scripts/` to audit the dataset, inspect class distributions, create controlled subsets, and visualize annotations before training or evaluation.
+Dataset contents are excluded from Git. Utilities in `scripts/` support dataset audits, controlled subsets, and annotation visualization.
 
-Useful utilities include:
+## Shared evaluation protocol
 
-```text
-scripts/audit_doclaynet.py
-scripts/create_doclaynet_overfit_subset.py
-scripts/visualize_doclaynet.py
-```
-
-## YOLO26s setup
-
-YOLO uses the immutable external checkpoint pinned by revision in:
-
-```text
-yolo26/download_checkpoint.sh
-```
-
-Basic checkpoint validation:
-
-```bash
-python - <<'PY'
-from ultralytics import YOLO
-
-model = YOLO("yolo26/checkpoints/yolo26s-doclaynet.pt")
-print(model.names)
-PY
-```
-
-## Shared evaluation
-
-Both detectors must export predictions in canonical COCO result format:
+Both detectors export predictions in canonical COCO result format:
 
 ```json
 [
@@ -324,21 +280,17 @@ Both detectors must export predictions in canonical COCO result format:
 ]
 ```
 
-The contract is:
+The common contract is:
 
 - original DocLayNet image IDs;
 - canonical category IDs 1–11;
 - absolute COCO `xywh` boxes in original-page pixels;
 - scores in `[0,1]`;
+- confidence floor `0.001`;
 - no more than 300 exported predictions per image;
-- development and protocol validation on the validation split;
-- one frozen evaluation on the test split.
-
-### Install the evaluator
-
-```bash
-python -m pip install -r eval/requirements.txt
-```
+- the same sanitation and schema validation;
+- `faster-coco-eval==1.8.0`;
+- standard COCO `maxDets=[1,10,100]`.
 
 ### Verify the evaluator
 
@@ -350,7 +302,45 @@ python eval/selftest_gt.py \
   --out results/evaluator/val-ground-truth-selftest.json
 ```
 
-### Sanitize predictions
+### Export and evaluate YOLO26s
+
+A complete validation run performs canonical export, sanitation, schema validation, and shared COCO evaluation:
+
+```bash
+python eval/run_yolo_doclaynet_eval.py \
+  --split val \
+  --batch-size 8 \
+  --device 0
+```
+
+If the selected batch size exceeds available VRAM, reduce `--batch-size`; batch size does not change the evaluation protocol.
+
+Outputs are written to `results/yolo/`:
+
+```text
+val-raw.json
+val-export-metadata.json
+val-sanitized.json
+val-sanitation.json
+val-validation.json
+val-metrics.json
+```
+
+For a small plumbing test, supply a JSON list of image IDs:
+
+```bash
+python eval/run_yolo_doclaynet_eval.py \
+  --split val \
+  --image-ids eval/demo_image_ids.json \
+  --batch-size 4 \
+  --device 0
+```
+
+Subset metrics are plumbing checks only and are not reportable benchmark results.
+
+### Evaluate existing canonical predictions
+
+Sanitize:
 
 ```bash
 python eval/sanitize_predictions.py \
@@ -360,9 +350,7 @@ python eval/sanitize_predictions.py \
   --report-out results/MODEL/val-sanitation.json
 ```
 
-Sanitation clips boxes to original image bounds and drops boxes with no positive area after clipping.
-
-### Validate the prediction schema
+Validate:
 
 ```bash
 python eval/validate_predictions.py \
@@ -371,7 +359,7 @@ python eval/validate_predictions.py \
   --summary-out results/MODEL/val-validation.json
 ```
 
-### Run common COCO evaluation
+Evaluate:
 
 ```bash
 python eval/coco_eval.py \
@@ -381,23 +369,62 @@ python eval/coco_eval.py \
   --out results/MODEL/val-metrics.json
 ```
 
-The evaluator reports:
+The evaluator reports AP50–95, AP50, AP75, scale-specific AP, AR@1, AR@10, AR@100, and per-class AP.
 
-- AP50–95, AP50, and AP75;
-- AP for small, medium, and large objects;
-- AR@1, AR@10, and AR@100;
-- per-class AP50–95 and AP50.
+## Validation comparison
 
-Use the same ground truth, sanitation, evaluator version, score floor, image IDs, category mapping, and `maxDets` policy for both detectors.
+Both models were evaluated on the complete DocLayNet validation split using the shared protocol above.
+
+| Metric | RT-DETRv4-S | YOLO26s |
+|---|---:|---:|
+| AP50–95 | **0.8081** | 0.7498 |
+| AP50 | **0.9319** | 0.9033 |
+| AP75 | **0.8705** | 0.7813 |
+| AP small | **0.6354** | 0.6260 |
+| AP medium | **0.7126** | 0.6506 |
+| AP large | **0.8296** | 0.8045 |
+| AR@1 | **0.4045** | 0.3778 |
+| AR@10 | **0.8299** | 0.7605 |
+| AR@100 | **0.8896** | 0.8014 |
+
+RT-DETRv4-S leads on every aggregate metric. The largest AP difference is at IoU 0.75, where RT-DETRv4-S leads by 0.0892, indicating materially tighter localization. The small-object difference is comparatively narrow at 0.0094.
+
+These are validation results used for development and model comparison. They are not final held-out test results.
+
+## Test evaluation
+
+Run the test split only after the protocol and reporting choices are frozen:
+
+```bash
+python eval/run_yolo_doclaynet_eval.py \
+  --split test \
+  --batch-size 8 \
+  --device 0
+```
+
+Apply the same fixed protocol to the RT-DETRv4-S test predictions. Do not tune thresholds, sanitation, category mappings, or evaluator settings after inspecting test results.
+
+## Reproducibility and generated files
+
+The following remain local and excluded from Git:
+
+- DocLayNet data;
+- Python virtual environments;
+- downloaded `.pt` and `.pth` checkpoints;
+- generated prediction arrays and evaluation outputs;
+- application outputs under `results/`;
+- Python bytecode caches.
+
+Commit compact provenance files, final metric summaries, and selected figures only when deliberately placed in a versioned documentation or artifact directory.
 
 ## Known limitations
 
-- OCR quality is determined by the off-the-shelf Tesseract engine and source resolution.
-- Tables and formulas are preserved as visual regions rather than structurally parsed.
+- OCR quality depends on Tesseract and source resolution.
+- Tables and formulas are preserved visually rather than structurally parsed.
 - DOCX and ODT are semantic reflows, not pixel-faithful reproductions.
-- The searchable PDF preserves the original page image and adds an invisible OCR text layer; it is not the same representation as the semantic DOCX/ODT output.
-- Reading order is geometry-based and may be imperfect on highly complex multi-column pages.
-- Detector accuracy outside the DocLayNet document domain depends on document similarity and image quality.
+- The searchable PDF preserves the original page image and adds an invisible OCR text layer.
+- Reading order is geometry-based and may be imperfect on complex multi-column pages.
+- Detector accuracy outside the DocLayNet domain depends on document similarity and image quality.
 
 ## License
 
