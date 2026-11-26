@@ -14,8 +14,21 @@ MODEL_URL="https://huggingface.co/hantian/yolo-doclaynet/resolve/${MODEL_REVISIO
 
 # By default, this creates the project inside the UCloud job staging directory.
 # See the persistent-storage note below.
-WORK_ROOT="${UCLOUD_WORK_ROOT:-${PWD}/yolo26-ucloud-work}"
+WORK_ROOT="${WORKSPACE_ROOT:-/work/document-layout-parsing}"
+WORK_ROOT="${WORKSPACE_ROOT}/yolo26-setup"
 REPO_DIR="${WORK_ROOT}/Document-Layout-Parsing-using-OCR"
+
+if [[ ! -d "${WORKSPACE_ROOT}/DocLayNet_core" ]]; then
+    echo "ERROR: Persistent UCloud folder does not appear to be mounted."
+    echo "Expected to find: ${WORKSPACE_ROOT}/DocLayNet_core"
+    exit 1
+fi
+
+mkdir -p "${WORK_ROOT}"
+
+echo "Persistent workspace: ${WORKSPACE_ROOT}"
+echo "YOLO work directory: ${WORK_ROOT}"
+echo "Repository directory: ${REPO_DIR}"
 
 echo "============================================================"
 echo "YOLO26-S DocLayNet UCloud setup"
@@ -79,15 +92,20 @@ mkdir -p yolo26/artifacts
 # Create the Python environment
 # ---------------------------------------------------------------------------
 
-echo "=== Creating Python virtual environment ==="
+echo "=== Preparing Python virtual environment ==="
 
-python3 -m venv .venv-yolo26
+if [[ -f ".venv-yolo26/bin/activate" ]]; then
+    echo "Reusing existing Python virtual environment."
+else
+    echo "Creating Python virtual environment."
+    python3 -m venv .venv-yolo26
+fi
+
 source .venv-yolo26/bin/activate
 
 python -m pip install --upgrade pip setuptools wheel
 
-# Preserve the PyTorch installation supplied by the UCloud environment where
-# possible, because that installation should match the available CUDA driver.
+# Reuse PyTorch if it is already installed in the virtual environment.
 if python -c "import torch" >/dev/null 2>&1; then
     echo "Existing PyTorch installation detected."
 else
@@ -95,6 +113,7 @@ else
     echo "Installing PyTorch and torchvision from PyPI."
     python -m pip install torch torchvision
 fi
+
 
 echo "=== Installing YOLO dependencies ==="
 
@@ -104,28 +123,31 @@ else
     python -m pip install ultralytics huggingface_hub pillow pyyaml
 fi
 
-echo "=== Configuring headless OpenCV ==="
+echo "=== Verifying headless OpenCV ==="
 
-# Ultralytics may install the regular GUI-enabled OpenCV package.
-# UCloud batch jobs have no desktop GUI, so use exactly one headless build.
-python -m pip uninstall -y \
-    opencv-python \
-    opencv-contrib-python \
-    opencv-python-headless \
-    opencv-contrib-python-headless \
-    || true
-
-python -m pip install --no-cache-dir opencv-python-headless
-
-echo "=== Verifying OpenCV ==="
-
-python - <<'PY'
+if python - <<'PY'
 import cv2
-
 print(f"OpenCV import succeeded: {cv2.__version__}")
-print(f"OpenCV location: {cv2.__file__}")
 PY
+then
+    echo "Existing OpenCV installation works."
+else
+    echo "Replacing OpenCV with the headless build."
 
+    python -m pip uninstall -y \
+        opencv-python \
+        opencv-contrib-python \
+        opencv-python-headless \
+        opencv-contrib-python-headless \
+        || true
+
+    python -m pip install --no-cache-dir opencv-python-headless
+
+    python - <<'PY'
+import cv2
+print(f"Headless OpenCV import succeeded: {cv2.__version__}")
+PY
+fi
 # ---------------------------------------------------------------------------
 # Check CUDA before downloading and loading the model
 # ---------------------------------------------------------------------------
