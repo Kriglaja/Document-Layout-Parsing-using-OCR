@@ -7,16 +7,6 @@ data/*
 !data/*.md
 datasets/
 
-# Local model artifacts
-models/**/*.pth
-models/**/*.pt
-!models/**/.gitkeep
-# Local model bundles and generated document-pipeline artifacts
-models/rtdetrv4/*.pth
-models/rtdetrv4/*.pt
-rtdetrv4/configs/rtv4/runtime-config-local.yml
-models/rtdetrv4/*sha256*.txt
-
 # Training and inference outputs
 outputs/
 runs/
@@ -56,10 +46,6 @@ Thumbs.db
 # https://github.com/facebookresearch/dinov3
 rtdetrv4/dinov3
 rtdetrv4/pretrain
-# Downloaded model weights
-*.pth
-rtdetrv4/checkpoints/
-!rtdetrv4/checkpoints/.gitkeep
 
 # Python-generated files
 __pycache__/
@@ -71,7 +57,12 @@ venv/
 # Ultralytics default output
 runs/
 
-# Downloaded model weights
+# RT-DETR checkpoints and local runtime artifacts
+rtdetrv4/checkpoints/*
+!rtdetrv4/checkpoints/.gitkeep
+rtdetrv4/configs/rtv4/runtime-config-local.yml
+
+# YOLO checkpoints
 yolo26/checkpoints/*
 !yolo26/checkpoints/.gitkeep
 
