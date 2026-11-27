@@ -6,3 +6,15 @@ odfpy>=1.4
 PyYAML>=6.0
 ultralytics
 faster-coco-eval==1.8.0
+tensorboard
+torch
+torchvision
+PyYAML
+tensorboard
+scipy
+calflops
+transformers
+opencv-python-headless
+Pillow>=10.0
+torchmetrics
+termcolor
