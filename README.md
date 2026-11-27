@@ -290,7 +290,8 @@ The common contract is:
 - no more than 300 exported predictions per image;
 - the same sanitation and schema validation;
 - `faster-coco-eval==1.8.0`;
-- standard COCO `maxDets=[1,10,100]`.
+- standard COCO `maxDets=[1,10,100]`;
+- model-native frozen postprocessing: RT-DETR top-score selection and YOLO class-aware NMS with `iou=0.7` and `agnostic_nms=False`.
 
 ### Verify the evaluator
 
@@ -310,8 +311,12 @@ A complete validation run performs canonical export, sanitation, schema validati
 python eval/run_yolo_doclaynet_eval.py \
   --split val \
   --batch-size 8 \
-  --device 0
+  --device 0 \
+  --iou 0.7 \
+  --no-agnostic-nms
 ```
+
+The YOLO exporter explicitly freezes `conf=0.001`, `iou=0.7`, `max_det=300`, and `agnostic_nms=False`. YOLO class indices 0–10 map to canonical DocLayNet category IDs 1–11.
 
 If the selected batch size exceeds available VRAM, reduce `--batch-size`; batch size does not change the evaluation protocol.
 
@@ -325,18 +330,6 @@ val-sanitation.json
 val-validation.json
 val-metrics.json
 ```
-
-For a small plumbing test, supply a JSON list of image IDs:
-
-```bash
-python eval/run_yolo_doclaynet_eval.py \
-  --split val \
-  --image-ids eval/demo_image_ids.json \
-  --batch-size 4 \
-  --device 0
-```
-
-Subset metrics are plumbing checks only and are not reportable benchmark results.
 
 ### Evaluate existing canonical predictions
 
@@ -373,21 +366,21 @@ The evaluator reports AP50–95, AP50, AP75, scale-specific AP, AR@1, AR@10, AR@
 
 ## Validation comparison
 
-Both models were evaluated on the complete DocLayNet validation split using the shared protocol above.
+Both models were evaluated on all 6,489 DocLayNet validation pages using the shared protocol above.
 
-| Metric | RT-DETRv4-S | YOLO26s |
-|---|---:|---:|
-| AP50–95 | **0.8081** | 0.7498 |
-| AP50 | **0.9319** | 0.9033 |
-| AP75 | **0.8705** | 0.7813 |
-| AP small | **0.6354** | 0.6260 |
-| AP medium | **0.7126** | 0.6506 |
-| AP large | **0.8296** | 0.8045 |
-| AR@1 | **0.4045** | 0.3778 |
-| AR@10 | **0.8299** | 0.7605 |
-| AR@100 | **0.8896** | 0.8014 |
+| Metric | RT-DETRv4-S | YOLO26s | RT-DETR advantage |
+|---|---:|---:|---:|
+| AP50–95 | **0.8081** | 0.7527 | +0.0554 |
+| AP50 | **0.9319** | 0.9027 | +0.0292 |
+| AP75 | **0.8705** | 0.7868 | +0.0838 |
+| AP small | **0.6354** | 0.6261 | +0.0093 |
+| AP medium | **0.7126** | 0.6535 | +0.0591 |
+| AP large | **0.8296** | 0.8078 | +0.0217 |
+| AR@1 | **0.4045** | 0.3778 | +0.0266 |
+| AR@10 | **0.8299** | 0.7645 | +0.0654 |
+| AR@100 | **0.8896** | 0.8070 | +0.0827 |
 
-RT-DETRv4-S leads on every aggregate metric. The largest AP difference is at IoU 0.75, where RT-DETRv4-S leads by 0.0892, indicating materially tighter localization. The small-object difference is comparatively narrow at 0.0094.
+RT-DETRv4-S leads on every aggregate validation metric. The largest AP difference is at IoU 0.75, where RT-DETRv4-S leads by 0.0838, indicating materially tighter localization. The small-object difference is comparatively narrow at 0.0093.
 
 These are validation results used for development and model comparison. They are not final held-out test results.
 
@@ -399,10 +392,12 @@ Run the test split only after the protocol and reporting choices are frozen:
 python eval/run_yolo_doclaynet_eval.py \
   --split test \
   --batch-size 8 \
-  --device 0
+  --device 0 \
+  --iou 0.7 \
+  --no-agnostic-nms
 ```
 
-Apply the same fixed protocol to the RT-DETRv4-S test predictions. Do not tune thresholds, sanitation, category mappings, or evaluator settings after inspecting test results.
+Apply the same fixed external protocol and RT-DETR-native postprocessing to RT-DETRv4-S test predictions. Do not tune thresholds, sanitation, category mappings, or evaluator settings after inspecting test results.
 
 ## Reproducibility and generated files
 

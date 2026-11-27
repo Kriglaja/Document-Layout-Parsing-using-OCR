@@ -28,6 +28,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--input-size", type=int, default=1024)
     parser.add_argument("--confidence", type=float, default=0.001)
     parser.add_argument("--max-detections", type=int, default=300)
+    parser.add_argument("--iou", type=float, default=0.7)
+    parser.add_argument(
+        "--agnostic-nms",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
     return parser.parse_args()
 
 
@@ -57,6 +63,8 @@ def main() -> None:
         "--input-size", args.input_size,
         "--device", args.device,
         "--batch-size", args.batch_size,
+        "--iou", args.iou,
+        "--agnostic-nms" if args.agnostic_nms else "--no-agnostic-nms",
     ]
     if args.image_ids:
         export_arguments.extend(["--image-ids", args.image_ids])

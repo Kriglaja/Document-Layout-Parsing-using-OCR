@@ -41,6 +41,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--input-size", type=int, default=1024)
     parser.add_argument("--device", default="0", help="Ultralytics device, e.g. 0 or cpu")
     parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--iou", type=float, default=0.7)
+    parser.add_argument(
+        "--agnostic-nms",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
     return parser.parse_args()
 
 
@@ -95,6 +101,8 @@ def main() -> None:
         raise SystemExit("--max-detections must be in [1,300]")
     if args.batch_size < 1:
         raise SystemExit("--batch-size must be positive")
+    if not 0.0 <= args.iou <= 1.0:
+        raise SystemExit("--iou must be in [0,1]")
 
     coco = load_json(args.annotations)
     requested_ids = selected_ids(args.image_ids)
@@ -132,7 +140,9 @@ def main() -> None:
             source=[str(path) for path in batch_paths],
             imgsz=args.input_size,
             conf=args.confidence,
+            iou=args.iou,
             max_det=args.max_detections,
+            agnostic_nms=args.agnostic_nms,
             device=args.device,
             batch=args.batch_size,
             verbose=False,
@@ -202,6 +212,8 @@ def main() -> None:
         "class_names": names,
         "category_mapping": "YOLO class 0-10 mapped to canonical COCO category 1-11",
         "coordinate_format": "absolute original-image COCO xywh",
+        "nms_iou": args.iou,
+        "agnostic_nms": args.agnostic_nms,
         "output": str(args.output.resolve()),
         "output_sha256": sha256(args.output),
     }
